@@ -1,7 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, Path, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+from database.connection import initialize_db, get_session
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    initialize_db()
+    yield   
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -10,7 +19,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.get("/")
 async def read_root():

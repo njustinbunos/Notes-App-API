@@ -1,2 +1,2 @@
-from .notes import Note
+from .notes import Note, NoteCreate, NoteUpdate, NoteRead
 from .users import User

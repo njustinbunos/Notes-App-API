@@ -1,11 +1,16 @@
 from sqlmodel import SQLModel, Field, Relationship
 from users import User
-from typing import Optional
+from typing import Optional, Dict
 
 class NoteBase(SQLModel):
     body: str
-    color: str  
-    position: str
+    color_id: str
+    color_header: str
+    color_body: str
+    color_text: str
+    pos_x: int
+    pos_y: int
+
 
 class Note(NoteBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -2,9 +2,9 @@ from fastapi import FastAPI, Depends, Path, Query, HTTPException
 from sqlmodel import Session, select
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from models import *
+from .models import Note, NoteBase, NoteCreate, NoteRead, NoteUpdate
 
-from database.connection import initialize_db, get_session
+from .database import initialize_db, get_session
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,4 +37,8 @@ async def create_notes(note: NoteCreate, session: Session = Depends(get_session)
 @app.get("/notes/")
 async def get_notes():
     return {"Notes":"a list of notes or smth"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
 

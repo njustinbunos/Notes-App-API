@@ -62,6 +62,48 @@ async def get_note(note_id: int = Path(ge=1), session: Session = Depends(get_ses
         # put e in a log file
         raise HTTPException(status_code=500, detail="Failed to fetch note")
 
+@app.put("/notes/{note_id}", response_model=NoteRead)
+async def update_note(
+    note_update: NoteUpdate,
+    note_id: int = Path(ge=1),
+    session: Session = Depends(get_session)
+):
+    try:
+        db_note = session.get(Note, note_id)
+        if not db_note:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        note_data = note_update.model_dump(exclude_unset=True)
+        for key, value in note_data.items():
+            setattr(db_note, key, value)
+
+        session.add(db_note)
+        session.commit()
+        session.refresh(db_note)
+
+        return db_note
+    except Exception as e:
+        # put e in a log file
+        raise HTTPException(status_code=500, detail="Failed to update note")
+    
+@app.delete("/notes/{note_id}")
+async def delete_note(
+    note_id: int = Path(ge=1),
+    session: Session = Depends(get_session)
+):
+    try:
+        db_note = session.get(Note, note_id)
+        if not db_note:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        session.delete(db_note)
+        session.commit()
+
+        return {"detail": "Note deleted"}
+    except Exception as e:
+        # put e in a log file
+        raise HTTPException(status_code=500, detail="Failed to delete note")
+
 
 if __name__ == "__main__":
     import uvicorn

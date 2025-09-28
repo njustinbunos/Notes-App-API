@@ -26,17 +26,31 @@ app.add_middleware(
 async def read_root():
     return {"Message":"Hello World!"}
 
-@app.post("/notes/", response_model=Note)
+@app.post("/notes/", response_model=NoteRead)
 async def create_notes(note: NoteCreate, session: Session = Depends(get_session)):
-    db_note = Note.model_validate(note)
-    session.add(db_note)
-    session.commit()
-    session.refresh(db_note)
-    return db_note
+    try:
+        db_note = Note.model_validate(note)
 
-@app.get("/notes/")
-async def get_notes():
-    return {"Notes":"a list of notes or smth"}
+        session.add(db_note)
+        session.commit()
+        session.refresh(db_note)
+
+        return db_note
+    except Exception as e:
+        # put e in a log file
+        raise HTTPException(status_code=500, detail="Failed to create note")
+
+        
+
+@app.get("/notes/", response_model=list[NoteRead])
+async def get_notes(session: Session = Depends(get_session)):
+    try:
+        notes = session.exec(select(Note)).all()
+        return notes
+    except Exception as e:
+        # pput e in a log file
+        raise HTTPException(status_code=500, detail="Failed to fetch notes")
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -51,6 +51,17 @@ async def get_notes(session: Session = Depends(get_session)):
         # pput e in a log file
         raise HTTPException(status_code=500, detail="Failed to fetch notes")
 
+@app.get("/notes/{note_id}", response_model=NoteRead)
+async def get_note(note_id: int = Path(ge=1), session: Session = Depends(get_session)):
+    try:
+        note = session.get(Note, note_id)
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        return note
+    except Exception as e:
+        # put e in a log file
+        raise HTTPException(status_code=500, detail="Failed to fetch note")
+
 
 if __name__ == "__main__":
     import uvicorn

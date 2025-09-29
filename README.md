@@ -133,8 +133,8 @@ The application uses SQLite by default. The database file and session management
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/njustinbunos/Sticky-Note-Board-API.git
-cd Sticky-Notes-Board-API
+git clone https://github.com/njustinbunos/Notes-App-API.git
+cd Notes-App-API
 ```
 
 2. Create a virtual environment:

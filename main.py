@@ -70,9 +70,9 @@ class ColoredTextTestRunner(unittest.TextTestRunner):
         print("\n" + "=" * 70)
         
         if result.wasSuccessful():
-            print(f"{Colors.GREEN}{Colors.BOLD}✓ All tests passed!{Colors.RESET}")
+            print(f"{Colors.GREEN}{Colors.BOLD} All tests passed!{Colors.RESET}")
         else:
-            print(f"{Colors.RED}{Colors.BOLD}✗ Some tests failed{Colors.RESET}")
+            print(f"{Colors.RED}{Colors.BOLD} Some tests failed{Colors.RESET}")
 
         print(f"\n{Colors.BOLD}Test Results:{Colors.RESET}")
         print(f"  {Colors.GREEN}Passed:{Colors.RESET}  {result.testsRun - len(result.failures) - len(result.errors) - len(result.skipped)}")

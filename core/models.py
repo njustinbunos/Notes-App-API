@@ -44,7 +44,7 @@ class NoteBase(SQLModel):
 class Note(NoteBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
-    owner: Optional["UserBase"] = Relationship(back_populates="notes")
+    owner: Optional["User"] = Relationship(back_populates="notes")
 
 
 class NoteCreate(NoteBase):

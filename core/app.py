@@ -3,8 +3,8 @@ from sqlmodel import Session, select
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from .models import Note, NoteBase, NoteCreate, NoteRead, NoteUpdate, UserBase, UserCreate, LoginRequest, User
-from utils.jwt import create_access_token, create_refresh_token, verify_token_type, decode_token, get_token_expiration, create_token_pair
-from utils.security import hash_password, verify_password
+from .utils.jwt import create_access_token, create_refresh_token, verify_token_type, decode_token, get_token_expiration, create_token_pair
+from .utils.security import hash_password, verify_password
 
 from .database import initialize_db, get_session
 
@@ -32,7 +32,7 @@ async def read_root():
 async def register(credentials: UserCreate, session: Session = Depends(get_session)):
     try:
         db_user = session.exec(
-            select(User).where(UserBase.username == credentials.username)).first()
+            select(User).where(User.username == credentials.username)).first()
         if db_user:
             raise HTTPException(
                 status_code=400, 
@@ -40,7 +40,7 @@ async def register(credentials: UserCreate, session: Session = Depends(get_sessi
             )
 
         db_user = session.exec(
-            select(User).where(UserBase.email == credentials.email)
+            select(User).where(User.email == credentials.email)
         ).first()
         if db_user:
             raise HTTPException(
@@ -66,7 +66,7 @@ async def register(credentials: UserCreate, session: Session = Depends(get_sessi
 @app.post("/login")
 async def login(credentials: LoginRequest, session: Session = Depends(get_session)):
     try:
-        user_query = select(User).where(UserBase.username == credentials.username)
+        user_query = select(User).where(User.username == credentials.username)  # Changed from UserBase to User
         found_user = session.exec(user_query).first()
         if not found_user:
             raise HTTPException(status_code=401, detail="Invalid username or password")
@@ -80,10 +80,12 @@ async def login(credentials: LoginRequest, session: Session = Depends(get_sessio
             "refresh_token": refresh_token,
             "token_type": "bearer"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         # put e in a log file
         raise HTTPException(status_code=500, detail="Failed to login user")
-
+    
 @app.post("/notes/", response_model=NoteRead)
 async def create_notes(note: NoteCreate, session: Session = Depends(get_session)):
     try:

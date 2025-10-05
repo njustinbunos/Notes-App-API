@@ -4,3 +4,5 @@ cl.md
 .db
 .env
 db.sqlite3
+debug_login.py
+*.log

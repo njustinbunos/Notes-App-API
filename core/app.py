@@ -59,6 +59,9 @@ async def register(credentials: UserCreate, session: Session = Depends(get_sessi
         session.refresh(new_user)
 
         return {"Message": "Register endpoint"}
+    except HTTPException:
+        raise
+    
     except Exception as e:
         # put e in a log file
         raise HTTPException(status_code=500, detail="Failed to register user")

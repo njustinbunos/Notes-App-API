@@ -8,8 +8,11 @@ def initialize_db():
     SQLModel.metadata.create_all(engine)
 
 def get_session():
-    with Session(engine) as session:
-        try:
-            yield session
-        except:
-            session.rollback()
+    session = Session(engine)
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

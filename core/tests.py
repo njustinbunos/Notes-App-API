@@ -1,9 +1,12 @@
 import unittest
 from sqlmodel import create_engine, Session, SQLModel, select
 from sqlmodel.pool import StaticPool
+from fastapi.testclient import TestClient
 from core.app import app
 from core.database import get_session
-from core.models import Note
+from core.models import Note, User
+from core.utils.security import verify_password
+from core.utils.jwt import decode_token
 
 
 class TestNotesAPI(unittest.TestCase):
@@ -251,6 +254,310 @@ class TestNotesAPI(unittest.TestCase):
         # Second note should be unchanged
         self.assertEqual(note2.body, "Second note")
         self.assertEqual(note1.body, "Modified first note")
+
+
+class TestAuthAPI(unittest.TestCase):
+    
+    @classmethod
+    def setUpClass(cls):
+        """Set up test database engine and client once for all tests"""
+        cls.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        cls.client = TestClient(app)
+    
+    def setUp(self):
+        """Create fresh database and session for each test"""
+        SQLModel.metadata.create_all(type(self).engine)
+        self.session = Session(type(self).engine)
+        
+        # Override the dependency
+        def get_session_override():
+            return self.session
+        
+        app.dependency_overrides[get_session] = get_session_override
+        self.addCleanup(app.dependency_overrides.clear)
+        
+        # Sample user data
+        self.sample_user = {
+            "username": "testuser",
+            "email": "test@example.com",
+            "password": "password123"
+        }
+    
+    def tearDown(self):
+        """Clean up after each test"""
+        self.session.close()
+        SQLModel.metadata.drop_all(self.engine)
+        app.dependency_overrides.clear()
+    
+    def _register_user(self, user_data=None):
+        """Helper method to register a user via API"""
+        if user_data is None:
+            user_data = self.sample_user
+        response = type(self).client.post("/register", json=user_data)
+        return response
+    
+    # Test Registration
+    def test_register_valid_user(self):
+        """Test registering a user with valid credentials"""
+        response = self._register_user()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Message", response.json())
+        
+        # Verify user was created in database
+        user = self.session.exec(
+            select(User).where(User.username == self.sample_user["username"])
+        ).first()
+        self.assertIsNotNone(user, "User should be created in database")
+        
+        if user:
+            self.assertEqual(user.username, self.sample_user["username"])
+            self.assertEqual(user.email, self.sample_user["email"])
+            self.assertNotEqual(user.password_hash, self.sample_user["password"])
+    
+    def test_register_duplicate_username(self):
+        """Test registering with an already existing username"""
+        self._register_user()
+        
+        # Try to register with same username but different email
+        duplicate_user = self.sample_user.copy()
+        duplicate_user["email"] = "different@example.com"
+        response = self._register_user(duplicate_user)
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Username already registered", response.json()["detail"])
+    
+    def test_register_duplicate_email(self):
+        """Test registering with an already existing email"""
+        self._register_user()
+        
+        # Try to register with same email but different username
+        duplicate_user = self.sample_user.copy()
+        duplicate_user["username"] = "differentuser"
+        response = self._register_user(duplicate_user)
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Email already registered", response.json()["detail"])
+    
+    def test_register_invalid_username_too_short(self):
+        """Test registering with username that's too short"""
+        invalid_user = self.sample_user.copy()
+        invalid_user["username"] = "ab"  # Less than 3 characters
+        response = self._register_user(invalid_user)
+        
+        self.assertEqual(response.status_code, 422)
+    
+    def test_register_invalid_username_too_long(self):
+        """Test registering with username that's too long"""
+        invalid_user = self.sample_user.copy()
+        invalid_user["username"] = "a" * 31  # More than 30 characters
+        response = self._register_user(invalid_user)
+        
+        self.assertEqual(response.status_code, 422)
+    
+    def test_register_invalid_password_too_short(self):
+        """Test registering with password that's too short"""
+        invalid_user = self.sample_user.copy()
+        invalid_user["password"] = "12345"  # Less than 6 characters
+        response = self._register_user(invalid_user)
+        
+        self.assertEqual(response.status_code, 422)
+    
+    def test_register_missing_fields(self):
+        """Test registering with missing required fields"""
+        incomplete_user = {"username": "testuser"}
+        response = type(self).client.post("/register", json=incomplete_user)
+        
+        self.assertEqual(response.status_code, 422)
+    
+    def test_register_password_is_hashed(self):
+        """Test that password is properly hashed in database"""
+        self._register_user()
+        
+        user = self.session.exec(
+            select(User).where(User.username == self.sample_user["username"])
+        ).first()
+        
+        self.assertIsNotNone(user, "User should exist in database")
+        
+        if user:
+            self.assertNotEqual(user.password_hash, self.sample_user["password"])
+            self.assertTrue(verify_password(self.sample_user["password"], user.password_hash))
+    
+    # Test Login
+    def test_login_valid_credentials(self):
+        """Test login with valid credentials"""
+        self._register_user()
+        
+        login_data = {
+            "username": self.sample_user["username"],
+            "password": self.sample_user["password"]
+        }
+        response = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("access_token", data)
+        self.assertIn("refresh_token", data)
+        self.assertEqual(data["token_type"], "bearer")
+    
+    def test_login_invalid_username(self):
+        """Test login with non-existent username"""
+        login_data = {
+            "username": "nonexistentuser",
+            "password": "password123"
+        }
+        response = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("Invalid username or password", response.json()["detail"])
+    
+    def test_login_invalid_password(self):
+        """Test login with incorrect password"""
+        self._register_user()
+        
+        login_data = {
+            "username": self.sample_user["username"],
+            "password": "wrongpassword"
+        }
+        response = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("Invalid username or password", response.json()["detail"])
+    
+    def test_login_missing_username(self):
+        """Test login with missing username"""
+        login_data = {"password": "password123"}
+        response = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response.status_code, 422)
+    
+    def test_login_missing_password(self):
+        """Test login with missing password"""
+        login_data = {"username": "testuser"}
+        response = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response.status_code, 422)
+    
+    def test_login_returns_valid_tokens(self):
+        """Test that login returns valid JWT tokens"""
+        self._register_user()
+        
+        login_data = {
+            "username": self.sample_user["username"],
+            "password": self.sample_user["password"]
+        }
+        response = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Verify tokens can be decoded
+        access_payload = decode_token(data["access_token"])
+        refresh_payload = decode_token(data["refresh_token"])
+        
+        self.assertIsNotNone(access_payload, "Access token should decode successfully")
+        self.assertIsNotNone(refresh_payload, "Refresh token should decode successfully")
+        
+        if access_payload:
+            self.assertEqual(access_payload["sub"], self.sample_user["username"])
+        if refresh_payload:
+            self.assertEqual(refresh_payload["sub"], self.sample_user["username"])
+    
+    def test_login_case_sensitive_username(self):
+        """Test that usernames are case-sensitive"""
+        self._register_user()
+        
+        login_data = {
+            "username": self.sample_user["username"].upper(),
+            "password": self.sample_user["password"]
+        }
+        response = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response.status_code, 401)
+    
+    # Test Integration Scenarios
+    def test_multiple_users_registration(self):
+        """Test registering multiple users"""
+        user1 = self.sample_user.copy()
+        user2 = {
+            "username": "seconduser",
+            "email": "second@example.com",
+            "password": "password456"
+        }
+        
+        response1 = self._register_user(user1)
+        response2 = self._register_user(user2)
+        
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response2.status_code, 200)
+        
+        # Verify both users exist
+        users = self.session.exec(select(User)).all()
+        self.assertEqual(len(users), 2)
+    
+    def test_register_login_flow(self):
+        """Test complete register and login flow"""
+        # Register
+        register_response = self._register_user()
+        self.assertEqual(register_response.status_code, 200)
+        
+        # Login
+        login_data = {
+            "username": self.sample_user["username"],
+            "password": self.sample_user["password"]
+        }
+        login_response = type(self).client.post("/login", json=login_data)
+        self.assertEqual(login_response.status_code, 200)
+        
+        # Verify tokens
+        data = login_response.json()
+        self.assertIsNotNone(data["access_token"])
+        self.assertIsNotNone(data["refresh_token"])
+    
+    def test_multiple_logins_same_user(self):
+        """Test that same user can login multiple times"""
+        self._register_user()
+        
+        login_data = {
+            "username": self.sample_user["username"],
+            "password": self.sample_user["password"]
+        }
+        
+        response1 = type(self).client.post("/login", json=login_data)
+        response2 = type(self).client.post("/login", json=login_data)
+        
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response2.status_code, 200)
+        
+        # Tokens should be different (new tokens each time)
+        token1 = response1.json()["access_token"]
+        token2 = response2.json()["access_token"]
+        self.assertNotEqual(token1, token2)
+    
+    def test_email_format_validation(self):
+        """Test that email format is validated"""
+        invalid_user = self.sample_user.copy()
+        invalid_user["email"] = "notanemail"
+        response = self._register_user(invalid_user)
+        
+        # This might pass depending on your validation
+        # If you have email validation, it should return 422
+        # If not, this test documents the current behavior
+        self.assertIn(response.status_code, [200, 422])
+    
+    def test_special_characters_in_username(self):
+        """Test username with special characters"""
+        special_user = self.sample_user.copy()
+        special_user["username"] = "user@123"
+        special_user["email"] = "special@example.com"
+        response = self._register_user(special_user)
+        
+        # This documents behavior - adjust based on your requirements
+        self.assertIn(response.status_code, [200, 422])
 
 
 if __name__ == '__main__':

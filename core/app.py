@@ -2,7 +2,9 @@ from fastapi import FastAPI, Depends, Path, Query, HTTPException
 from sqlmodel import Session, select
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from .models import Note, NoteBase, NoteCreate, NoteRead, NoteUpdate
+from .models import Note, NoteBase, NoteCreate, NoteRead, NoteUpdate, UserBase, UserCreate, LoginRequest, User
+from utils.jwt import create_access_token, create_refresh_token, verify_token_type, decode_token, get_token_expiration, create_token_pair
+from utils.security import hash_password, verify_password
 
 from .database import initialize_db, get_session
 
@@ -25,6 +27,62 @@ app.add_middleware(
 @app.get("/")
 async def read_root():
     return {"Message":"Hello World!"}
+
+@app.post("/register")
+async def register(credentials: UserCreate, session: Session = Depends(get_session)):
+    try:
+        db_user = session.exec(
+            select(User).where(UserBase.username == credentials.username)).first()
+        if db_user:
+            raise HTTPException(
+                status_code=400, 
+                detail="Username already registered"
+            )
+
+        db_user = session.exec(
+            select(User).where(UserBase.email == credentials.email)
+        ).first()
+        if db_user:
+            raise HTTPException(
+                status_code=400, 
+                detail="Email already registered"
+            )
+
+        new_user = User(
+            username=credentials.username,
+            email=credentials.email,
+            password_hash=hash_password(credentials.password)
+        )
+
+        session.add(new_user)
+        session.commit()
+        session.refresh(new_user)
+
+        return {"Message": "Register endpoint"}
+    except Exception as e:
+        # put e in a log file
+        raise HTTPException(status_code=500, detail="Failed to register user")
+
+@app.post("/login")
+async def login(credentials: LoginRequest, session: Session = Depends(get_session)):
+    try:
+        user_query = select(User).where(UserBase.username == credentials.username)
+        found_user = session.exec(user_query).first()
+        if not found_user:
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        if not verify_password(credentials.password, found_user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        
+        access_token = create_access_token({"sub": found_user.username})
+        refresh_token = create_refresh_token({"sub": found_user.username})
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+    except Exception as e:
+        # put e in a log file
+        raise HTTPException(status_code=500, detail="Failed to login user")
 
 @app.post("/notes/", response_model=NoteRead)
 async def create_notes(note: NoteCreate, session: Session = Depends(get_session)):

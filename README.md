@@ -84,28 +84,35 @@ A RESTful API for managing sticky notes with customizable colors and position. B
 }
 ```
 
-### Field Specifications
+## Field Specifications
 
-#### User Fields
-
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `username` | string | 3-30 chars, unique | User's username |
-| `email` | string | valid email, unique | User's email address |
-| `password` | string | min 6 chars | User's password (stored as hash) |
-
-#### Note Fields
+### **User Fields**
 
 | Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `body` | string | 1-500 chars | Note content |
-| `color_id` | string | max 20 chars | Color identifier |
-| `color_header` | string | hex color | Header background color |
-| `color_body` | string | hex color | Body background color |
-| `color_text` | string | hex color | Text color |
-| `pos_x` | integer | 0-5000 | X coordinate position |
-| `pos_y` | integer | 0-5000 | Y coordinate position |
-| `owner_id` | integer | optional | Foreign key to user |
+|--------|------|-------------|--------------|
+| `id` | integer | primary key, auto-increment | Unique user identifier |
+| `username` | string | 3–30 chars, unique, indexed | User’s chosen username |
+| `email` | string | valid email (regex), unique, indexed | User’s email address |
+| `password_hash` | string | non-null | Hashed password (bcrypt or Argon2) |
+| `notes` | relationship | back_populates=`owner` | One-to-many relationship with `Note` |
+
+---
+
+### **Note Fields**
+
+| Field | Type | Constraints | Description |
+|--------|------|-------------|--------------|
+| `id` | integer | primary key, auto-increment | Unique note identifier |
+| `body` | string | 1–500 chars, non-null | Note content |
+| `color_id` | string | ≤ 20 chars | Color identifier (e.g., theme name or alias) |
+| `color_header` | string | regex: `^#(?:[0-9a-fA-F]{3}){1,2}$` | Header background hex color |
+| `color_body` | string | regex: `^#(?:[0-9a-fA-F]{3}){1,2}$` | Body background hex color |
+| `color_text` | string | regex: `^#(?:[0-9a-fA-F]{3}){1,2}$` | Text color |
+| `pos_x` | integer | 0–5000 (inclusive) | X coordinate position on the board |
+| `pos_y` | integer | 0–5000 (inclusive) | Y coordinate position on the board |
+| `owner_id` | integer | optional, foreign key → `user.id` | Link to owning user |
+| `owner` | relationship | back_populates=`notes` | Many-to-one relationship with `User` |
+
 
 ## Usage Examples
 

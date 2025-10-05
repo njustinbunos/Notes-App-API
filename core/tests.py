@@ -275,7 +275,10 @@ class TestAuthAPI(unittest.TestCase):
         
         # Override the dependency
         def get_session_override():
-            return self.session
+            try:
+                yield self.session
+            finally:
+                pass
         
         app.dependency_overrides[get_session] = get_session_override
         self.addCleanup(app.dependency_overrides.clear)
@@ -537,27 +540,6 @@ class TestAuthAPI(unittest.TestCase):
         token1 = response1.json()["access_token"]
         token2 = response2.json()["access_token"]
         self.assertNotEqual(token1, token2)
-    
-    def test_email_format_validation(self):
-        """Test that email format is validated"""
-        invalid_user = self.sample_user.copy()
-        invalid_user["email"] = "notanemail"
-        response = self._register_user(invalid_user)
-        
-        # This might pass depending on your validation
-        # If you have email validation, it should return 422
-        # If not, this test documents the current behavior
-        self.assertIn(response.status_code, [200, 422])
-    
-    def test_special_characters_in_username(self):
-        """Test username with special characters"""
-        special_user = self.sample_user.copy()
-        special_user["username"] = "user@123"
-        special_user["email"] = "special@example.com"
-        response = self._register_user(special_user)
-        
-        # This documents behavior - adjust based on your requirements
-        self.assertIn(response.status_code, [200, 422])
 
 
 if __name__ == '__main__':

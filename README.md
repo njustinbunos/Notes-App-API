@@ -2,7 +2,7 @@
 
 [![My Skills](https://skillicons.dev/icons?i=fastapi,python&theme=dark)](https://skillicons.dev)
 
-A RESTful API for managing sticky notes with customizable colors and position. Built with FastAPI, featuring user authentication and JWT token-based authorization.
+A RESTful API for managing sticky notes with customizable colors and position. Built with FastAPI, featuring user authentication using JSON Web Tokens (JWT).
 
 ## Features
 
@@ -12,7 +12,7 @@ A RESTful API for managing sticky notes with customizable colors and position. B
 - User accounts with note ownership
 - Set colors for note headers, bodies, and text
 - Position notes with X/Y coordinates (0-5000 range)
-- Comprehensive validation for all fields
+- data validation for all fields with SQLmodel and Pydantic
 - Ready for frontend integration, only local host though
 
 ## API Endpoints
@@ -266,7 +266,7 @@ python main.py runserver
 
 ## Testing
 
-The application includes comprehensive unit tests for both notes and authentication functionality.
+The application includes unit tests for both notes and authentication functionalities.
 
 ### Running Tests
 

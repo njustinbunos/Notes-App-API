@@ -1,4 +1,4 @@
-# A Backend Server for this [Notes App](https://github.com/njustinbunos/Sticky-Note-Board)
+# A Simple Backend Server for this [Notes App](https://github.com/jairejustin/Sticky-Note-Board)
 
 [![My Skills](https://skillicons.dev/icons?i=fastapi,python&theme=dark)](https://skillicons.dev)
 
@@ -229,7 +229,7 @@ The application uses SQLite by default. The database file and session management
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/njustinbunos/Notes-App-API.git
+git clone <github-repo-url.git>
 cd Notes-App-API
 ```
 
